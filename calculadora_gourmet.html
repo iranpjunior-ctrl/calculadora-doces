@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Gourmet Fina 🍬</title>
+    
+    <!-- Vinculo do Manifesto PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#ed64a6">
+
+    <!-- Script de Registro do Service Worker Offline -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./service-worker.js')
+                .then(() => console.log('Service Worker registrado com sucesso offline!'))
+                .catch(err => console.log('Erro ao registrar Service Worker:', err));
+        }
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg-main: #1e1215;
+            --bg-card: #2a1b1e;
+            --text-main: #f5eff1;
+            --text-muted: #bdaab0;
+            --accent-pink: #d53f8c;
+            --accent-berry: #ed64a6;
+            --accent-purple: #9f7aea;
+            --border-color: #3d2429;
+            --input-bg: #150a0c;
+            --success-green: #38a169;
+            --warning-amber: #dd6b20;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-main); padding: 20px; min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; padding-bottom: 20px; }
+        header h1 { color: var(--accent-berry); font-size: 2.2rem; }
+
+        /* --- ABAS --- */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        .tab-btn {
+            background-color: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border-color);
+            padding: 10px 20px; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: bold; transition: all 0.3s;
+        }
+        .tab-btn.active { background-color: var(--accent-berry); color: #fff; border-color: var(--accent-berry); }
+        .tab-content { display: none; }
+        .tab-content.active { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .tab-content.active.grid-2 { grid-template-columns: 1.2fr 1fr; } }
+
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; box-shadow: 0 8px 16px rgba(0,0,0,0.4); height: fit-content; }
+        h2 { font-size: 1.3rem; color: var(--accent-berry); margin-bottom: 20px; border-left: 4px solid var(--accent-purple); padding-left: 10px; }
+        .form-group { margin-bottom: 15px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 600; }
+        input, textarea { width: 100%; background-color: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: 6px; font-size: 1rem; }
+        input::placeholder, textarea::placeholder { color: #5a4247; font-style: italic; }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent-berry); }
+
+        /* --- LISTAS E TABELAS INTERNAS --- */
+        .insumos-list { margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); }
+        .insumo-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+        .add-btn { background-color: var(--accent-purple); color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background-color: var(--input-bg); border-radius: 6px; overflow: hidden; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { background-color: #150a0c; color: var(--accent-berry); font-size: 0.9rem; }
+        
+        .qtd-carrinho-input { width: 70px; text-align: center; padding: 5px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; }
+        .icon-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; margin-right: 8px; }
+        .resumo-box { background-color: var(--input-bg); border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px; border: 1px dashed var(--accent-berry); }
+        .resumo-box .preco-grande { font-size: 2.8rem; font-weight: 800; color: #fff; }
+        .detalhe-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
+        .detalhe-item.lucro-liquido { color: var(--success-green); font-weight: bold; }
+        .action-btn { width: 100%; background-color: var(--accent-berry); color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-top: 15px; }
+
+        /* --- DESIGN DO RECIBO EXPORTÁVEL (ABA 3) --- */
+        #recibo-container-central { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        #recibo-exportar { background-color: #fff; color: #2d3748; padding: 40px; width: 700px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 2px solid #fed7e2; }
+        .recibo-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fbb6ce; padding-bottom: 20px; margin-bottom: 20px; }
+        .recibo-logo-preview { max-width: 120px; max-height: 120px; object-fit: contain; }
+        .recibo-titulo-empresa { font-size: 1.8rem; color: #d53f8c; font-weight: bold; text-align: right; }
+        .recibo-dados-cliente { background-color: #fff5f5; border: 1px solid #fed7e2; padding: 15px; border-radius: 6px; margin-bottom: 25px; }
+        .recibo-table { width: 100%; background: transparent; margin-bottom: 25px; }
+        .recibo-table th { background-color: #ed64a6; color: #fff; padding: 10px; }
+        .recibo-table td { border-bottom: 1px solid #edf2f7; color: #4a5568; padding: 10px; }
+        .recibo-total-faixa { background-color: #d53f8c; color: #fff; padding: 15px; text-align: center; font-size: 1.5rem; font-weight: bold; border-radius: 6px; margin-bottom: 25px; }
+        .recibo-footer { text-align: center; font-size: 0.9rem; color: #718096; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Calculadora Gourmet Fina 🍬</h1>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('aba-calculadora')">📊 1. Precificar Receita</button>
+            <button class="tab-btn" id="btn-aba-pedido" onclick="switchTab('aba-pedido')">📦 2. Carrinho & Custos Fixos (0)</button>
+            <button class="tab-btn" onclick="switchTab('aba-recibo')">📄 3. Visualizar Recibo</button>
+        </div>
+
+        <!-- ABA 1: CALCULADORA DE RECEITA -->
+        <div id="aba-calculadora" class="tab-content active grid-2">
+            <div class="card">
+                <h2>Criação da Receita</h2>
+                <div class="form-group">
+                    <label for="nomeDoce">Nome do Produto</label>
+                    <input type="text" id="nomeDoce" placeholder="Ex: Brigadeiro Belga Tradicional">
+                </div>
+
+                <div style="background-color: #231518; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-color);">
+                    <label style="color: var(--accent-berry); margin-bottom: 10px;">🛒 Lançar Insumo Fracionado</label>
+                    <div class="form-group">
+                        <input type="text" id="insumoNome" placeholder="Ex: Leite Condensado">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Peso Embalagem (g/ml)</label>
+                            <input type="number" id="insumoPesoEmb" placeholder="Ex: 395">
+                        </div>
+                        <div class="form-group">
+                            <!-- AJUSTE 1: Aplicado listener de máscara monetária da direita para a esquerda -->
+                            <label>Preço Embalagem</label>
+                            <input type="text" id="insumoPrecoEmb" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this)">
+                        </div>
+                    </div>
+                    <div class="form-row" style="align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Qtd Usada na Massa (g/ml)</label>
+                            <input type="number" id="insumoQtdUsada" placeholder="Ex: 395">
+                        </div>
+                        <button class="add-btn" onclick="adicionarInsumo()" style="height: 40px;">Puxar Insumo</button>
+                    </div>
+                    <div class="insumos-list" id="insumosContainer"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="rendimento">Rendimento Base desta Receita (Unidades)</label>
+                    <input type="number" id="rendimento" placeholder="Ex: 30">
+                </div>
+            </div>
+
+            <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <h2>Métricas de Custo Base</h2>
+                    <div class="resumo-box">
+                        <div class="preco-grande" id="precoSugerido">R$ 0,00</div>
+                        <div class="sub-label">Investimento Base em Ingredients (Por Unidade)</div>
+                    </div>
+                    <div class="detalhe-item">
+                        <span>Soma dos Insumos da Massa</span>
+                        <span class="valor" id="detalheIngredientes">R$ 0,00</span>
+                    </div>
+                </div>
+                <button class="action-btn" onclick="adicionarAoCarrinhoPedido()">📦 Enviar Doce para o Carrinho</button>
+            </div>
+        </div>
+
+        <!-- ABA 2: CARRINHO DO PEDIDO E CUSTOS OPERACIONAIS -->
+        <div id="aba-pedido" class="tab-content grid-2">
+            <div class="card">
+                <h2>Itens Lançados no Pedido</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Doce</th>
+                            <th style="text-align: center; width: 100px;">Qtd Encomendada</th>
+                            <th>Custo Ingrediente Unit.</th>
+                            <th>Total Base</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaPedidoBody"></tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>Custos Fixos do Evento & Margem</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <!-- AJUSTE 1: Aplicado listener de máscara monetária da direita para a esquerda -->
+                        <label for="embalagem">Forminhas / Embalagens</label>
+                        <input type="text" id="embalagem" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this)">
+                    </div>
+                    <div class="form-group">
+                        <!-- AJUSTE 1: Aplicado listener de máscara monetária da direita para a esquerda -->
+                        <label for="valorHora">Seu Valor/Hora</label>
+                        <input type="text" id="valorHora" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this)">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tempoGasto">Tempo Gasto (Horas)</label>
+                        <input type="number" id="tempoGasto" placeholder="Ex: 2" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="lucro">Sua Margem de Lucro (%)</label>
+                        <input type="number" id="lucro" placeholder="Ex: 100">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Nome do Cliente</label>
+                    <input type="text" id="clienteNome" placeholder="Ex: Maria Souza">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nº Orçamento</label>
+                        <input type="text" id="orcamentoNumero" placeholder="Ex: ORC-101">
+                    </div>
+                    <div class="form-group">
+                        <label>Sua Marca / Nome Comercial</label>
+                        <input type="text" id="empresaNome" placeholder="Ex: Confeitaria Vivi">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <!-- AJUSTE 2: Adicionado listener de máscara automática para telefone celular brasileiro -->
+                        <label>WhatsApp</label>
+                        <input type="text" id="empresaZap" placeholder="Ex: (85) 99999-0000" oninput="aplicarMascaraTelefone(this)">
+                    </div>
+                    <div class="form-group">
+                        <label>Instagram</label>
+                        <input type="text" id="empresaInsta" placeholder="Ex: @seu.insta">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Sua Logo Comercial</label>
+                    <input type="file" id="empresaLogo" accept="image/*" onchange="carregarLogo(event)">
+                </div>
+                <div class="form-group">
+                    <label>Observações do Orçamento</label>
+                    <textarea id="orcamentoObs" rows="2" placeholder="Ex: Validade de 7 dias. Prazo de produção: 3 dias úteis."></textarea>
+                </div>
+                <button class="action-btn" style="background-color: var(--accent-purple);" onclick="processarOrcamentoProporcional()">📊 Processar e Gerar Nota Fiscal</button>
+            </div>
+        </div>
+
+        <!-- ABA 3: VISUALIZAR E EXPORTAR O RECIBO -->
+        <div id="aba-recibo" class="tab-content">
+            <div id="recibo-container-central">
+                <button class="action-btn" style="background-color: var(--success-green); max-width: 700px; margin-bottom: 15px;" onclick="exportarReciboPNG()">📸 Baixar Imagem do Orçamento (PNG)</button>
+                
+                <div id="recibo-exportar">
+                    <div class="recibo-header">
+                        <img id="reciboLogoView" class="recibo-logo-preview" src="" style="display:none;">
+                        <div id="reciboLogoPlaceholder" style="font-size: 2rem;">🍬</div>
+                        <div>
+                            <div class="recibo-titulo-empresa" id="reciboEmpresaNome">Sua Marca Aqui</div>
+                            <div style="text-align:right; font-size:0.9rem; color:#718096;" id="reciboNumero">Nº ORC-000</div>
+                        </div>
+                    </div>
+                    <div class="recibo-dados-cliente">
+                        <div><strong>Cliente:</strong> <span id="reciboClienteNome">Não Informado</span></div>
+                        <div style="margin-top: 5px; font-size: 0.9rem; color:#4a5568;"><strong>Data de Emissão:</strong> <span id="reciboData">--/--/----</span></div>
+                    </div>
+                    <table class="recibo-table">
+                        <thead>
+                            <tr><th>Item / Doce</th><th>Quantidade</th><th>Preço Unitário</th><th>Total</th></tr>
+                        </thead>
+                        <tbody id="reciboItensBody"></tbody>
+                    </table>
+                    <div class="recibo-total-faixa" id="reciboTotalGeral">VALOR TOTAL: R$ 0,00</div>
+                    <div id="reciboObsBox" style="font-size: 0.85rem; margin-bottom: 20px; color: #718096; line-height: 1.4;"></div>
+                    <div class="recibo-footer">
+                        <span id="reciboZap">📞 WhatsApp: --</span> | <span id="reciboInsta">📸 Instagram: --</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let insumos = [];
+        let carrinhoPedido = [];
+        let logoBase64 = "";
+        let custoUnitarioIngredienteGlobal = 0;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if(event && event.currentTarget.classList) event.currentTarget.classList.add('active');
+        }
+
+        // --- FUNÇÕES DE MÁSCARA AUTOMÁTICA DE DIGITAÇÃO ---
+
+        function aplicarMascaraMoeda(input) {
+            // Remove tudo o que não for dígito numérico
+            let valor = input.value.replace(/\D/g, "");
+            
+            // Transforma em valor com duas casas decimais jogando da direita para a esquerda
+            valor = (valor / 100).toFixed(2) + "";
+            valor = valor.replace(".", ",");
+            
+            // Adiciona pontos de milhar se necessário
+            valor = valor.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1.");
+            
+            input.value = valor ? "R$ " + valor : "";
+            calcularCustoBaseDoce(); // Dispara o cálculo em tempo real associado à digitação
+        }
+
+        function converterTextoMoedaParaFloat(texto) {
+            if (!texto) return 0;
+            // Remove o prefixo "R$ " e limpa pontos de milhar, trocando a vírgula decimal por ponto
+            return parseFloat(texto.replace("R$ ", "").replace(/\./g, "").replace(",", ".")) || 0;
+        }
+
+        function aplicarMascaraTelefone(input) {
+            let num = input.value.replace(/\D/g, ""); // Remove tudo que não é número
+            num = num.substring(0, 11); // Limita ao tamanho máximo de celular com DDD (11 dígitos)
+
+            // Monta as partes da string adicionando os caracteres especiais de forma elegante
+            if (num.length > 0) {
+                num = "(" + num;
+            }
+            if (num.length > 3) {
+                num = num.substring(0, 3) + ") " + num.substring(3);
+            }
+            if (num.length > 10) {
+                num = num.substring(0, 10) + "-" + num.substring(10);
+            }
+            input.value = num;
+        }
+
+        // --- LÓGICA DE GERENCIAMENTO CORE ---
+
+        function carregarLogo(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    logoBase64 = e.target.result;
+                    const img = document.getElementById('reciboLogoView');
+                    img.src = logoBase64; img.style.display = 'block';
+                    document.getElementById('reciboLogoPlaceholder').style.display = 'none';
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function adicionarInsumo() {
+            const nome = document.getElementById('insumoNome').value.trim();
+            const pesoEmb = parseFloat(document.getElementById('insumoPesoEmb').value) || 0;
+            // Converte o campo com máscara de texto para float limpo antes da regra de três
+            const precoEmb = converterTextoMoedaParaFloat(document.getElementById('insumoPrecoEmb').value);
+            const qtdUsada = parseFloat(document.getElementById('insumoQtdUsada').value) || 0;
+
+            if (!nome || pesoEmb <= 0) return;
+            const custoCalculado = (precoEmb / pesoEmb) * qtdUsada;
+            insumos.push({ nome: nome, pesoEmb: pesoEmb, precoEmb: precoEmb, qtdUsada: qtdUsada, custo: custoCalculado });
+
+            document.getElementById('insumoNome').value = '';
+            document.getElementById('insumoPesoEmb').value = '';
+            document.getElementById('insumoPrecoEmb').value = '';
+            document.getElementById('insumoQtdUsada').value = '';
+            renderizarInsumos();
+        }
+
+        function removerInsumo(index) {
+            insumos.splice(index, 1);
+            renderizarInsumos();
+        }
+
+        function renderizarInsumos() {
+            const container = document.getElementById('insumosContainer');
+            container.innerHTML = '';
+            insumos.forEach((insumo, index) => {
+                const item = document.createElement('div');
+                item.className = 'insumo-item';
+                item.innerHTML = `<span>${insumo.nome}</span><div><span style="font-weight:600;margin-right:10px;">R$ ${insumo.custo.toFixed(2).replace('.', ',')}</span><button class="remove-btn" onclick="removerInsumo(${index})">&times;</button></div>`;
+                container.appendChild(item);
+            });
+            calcularCustoBaseDoce();
+        }
+
+        function calcularCustoBaseDoce() {
+            const rendimento = parseInt(document.getElementById('rendimento').value) || 1;
+            const totalIngredientes = insumos.reduce((sum, item) => sum + item.custo, 0);
+            custoUnitarioIngredienteGlobal = totalIngredientes / rendimento;
+
+            document.getElementById('precoSugerido').innerText = `R$ ${custoUnitarioIngredienteGlobal.toFixed(2).replace('.', ',')}`;
+            document.getElementById('detalheIngredientes').innerText = `R$ ${totalIngredientes.toFixed(2).replace('.', ',')}`;
+        }
+
+        function adicionarAoCarrinhoPedido() {
+            const nome = document.getElementById('nomeDoce').value.trim();
+            const rendimentoDigitado = parseInt(document.getElementById('rendimento').value) || 0;
+
+            if(!nome || rendimentoDigitado <= 0 || insumos.length === 0) {
+                alert("⚠️ Preencha o nome do doce, rendimento e lance os ingredientes da massa primeiro!");
+                return;
+            }
+
+            carrinhoPedido.push({
+                nome: nome,
+                quantidade: 1, 
+                custoUnitarioIngrediente: custoUnitarioIngredienteGlobal,
+                insumosBackup: [...insumos]
+            });
+
+            document.getElementById('nomeDoce').value = '';
+            document.getElementById('rendimento').value = '';
+            insumos = [];
+            renderizarInsumos();
+
+            atualizarTabelaPedido();
+            switchTab('aba-pedido');
+        }
+
+        function alterarQuantidadeCarrinho(index, novaQtd) {
+            const val = parseInt(novaQtd);
+            if(val > 0) {
+                carrinhoPedido[index].quantidade = val;
+                const totalItemCru = val * carrinhoPedido[index].custoUnitarioIngrediente;
+                document.getElementById(`total-cru-col-${index}`).innerText = `R$ ${totalItemCru.toFixed(2).replace('.', ',')}`;
+            }
+        }
+
+        function excluirItemPedido(index) {
+            carrinhoPedido.splice(index, 1);
+            atualizarTabelaPedido();
+        }
+
+        function editarItemPedido(index) {
+            const item = carrinhoPedido[index];
+            document.getElementById('nomeDoce').value = item.nome;
+            insumos = [...item.insumosBackup];
+            const rendimentoPresumido = insumos.reduce((sum, current) => sum + current.custo, 0) / item.custoUnitarioIngrediente;
+            document.getElementById('rendimento').value = Math.round(rendimentoPresumido);
+            
+            carrinhoPedido.splice(index, 1);
+            renderizarInsumos();
+            atualizarTabelaPedido();
+            switchTab('aba-calculadora');
+        }
+
+        function atualizarTabelaPedido() {
+            document.getElementById('btn-aba-pedido').innerText = `📦 2. Carrinho & Custos Fixos (${carrinhoPedido.length})`;
+            const tbody = document.getElementById('tabelaPedidoBody');
+            tbody.innerHTML = '';
+
+            carrinhoPedido.forEach((item, index) => {
+                const totalItemCru = item.quantidade * item.custoUnitarioIngrediente;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${item.nome}</strong></td>
+                    <td style="text-align: center;">
+                        <input type="number" class="qtd-carrinho-input" value="${item.quantidade}" min="1" oninput="alterarQuantidadeCarrinho(${index}, this.value)">
+                    </td>
+                    <td>R$ ${item.custoUnitarioIngrediente.toFixed(2).replace('.', ',')}</td>
+                    <td id="total-cru-col-${index}">R$ ${totalItemCru.toFixed(2).replace('.', ',')}</td>
+                    <td>
+                        <button class="icon-btn" onclick="editarItemPedido(${index})" title="Editar Receita">✏️</button>
+                        <button class="icon-btn" onclick="excluirItemPedido(${index})" title="Excluir">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function processarOrcamentoProporcional() {
+            if(carrinhoPedido.length === 0) {
+                alert("⚠️ Seu carrinho de doces está vazio!");
+                return;
+            }
+
+            // Converte os textos com máscaras de moeda para float puro na hora de rodar as fórmulas
+            const embalagem = converterTextoMoedaParaFloat(document.getElementById('embalagem').value);
+            const valorHora = converterTextoMoedaParaFloat(document.getElementById('valorHora').value);
+            const tempoGasto = parseFloat(document.getElementById('tempoGasto').value) || 0;
+            const lucroPct = parseFloat(document.getElementById('lucro').value) || 0;
+
+            const qtdTotalPedidoAbsoluto = carrinhoPedido.reduce((sum, item) => sum + item.quantidade, 0);
+            
+            const custoExtraFixoTotal = embalagem + (valorHora * tempoGasto);
+            const vendaExtraFixaTotal = custoExtraFixoTotal * (1 + (lucroPct / 100));
+            const taxaAdicionalPorUnidade = vendaExtraFixaTotal / qtdTotalPedidoAbsoluto;
+
+            document.getElementById('reciboEmpresaNome').innerText = document.getElementById('empresaNome').value || "Sua Confeitaria Gourmet";
+            document.getElementById('reciboNumero').innerText = `Nº ` + (document.getElementById('orcamentoNumero').value || "001");
+            document.getElementById('reciboClienteNome').innerText = document.getElementById('clienteNome').value || "Cliente Especial";
+            document.getElementById('reciboZap').innerText = `📞 WhatsApp: ` + (document.getElementById('empresaZap').value || "Não informado");
+            document.getElementById('reciboInsta').innerText = `📸 Instagram: ` + (document.getElementById('empresaInsta').value || "Não informado");
+            document.getElementById('reciboData').innerText = new Date().toLocaleDateString('pt-BR');
+            
+            const obs = document.getElementById('orcamentoObs').value;
+            document.getElementById('reciboObsBox').innerHTML = obs ? `<strong>Observações:</strong><br>${obs.replace(/\n/g, '<br>')}` : '';
+
+            const reciboTbody = document.getElementById('reciboItensBody');
+            reciboTbody.innerHTML = '';
+            let valorVendaTotalGeralCalculado = 0;
+
+            carrinhoPedido.forEach(item => {
+                const precoVendaUnitarioFinal = (item.custoUnitarioIngrediente * (1 + (lucroPct / 100))) + taxaAdicionalPorUnidade;
+                const totalLinhaVenda = Math.round(precoVendaUnitarioFinal * item.quantidade * 100) / 100;
+                valorVendaTotalGeralCalculado += totalLinhaVenda;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.nome}</td>
+                    <td>${item.quantidade}</td>
+                    <td>R$ ${precoVendaUnitarioFinal.toFixed(2).replace('.', ',')}</td>
+                    <td>R$ ${totalLinhaVenda.toFixed(2).replace('.', ',')}</td>
+                `;
+                reciboTbody.appendChild(tr);
+            });
+
+            document.getElementById('reciboTotalGeral').innerText = `VALOR TOTAL: R$ ${valorVendaTotalGeralCalculado.toFixed(2).replace('.', ',')}`;
+            switchTab('aba-recibo');
+        }
+
+        function exportarReciboPNG() {
+            const elementoRecibo = document.getElementById('recibo-exportar');
+            const numOrcamento = document.getElementById('orcamentoNumero').value || '001';
+
+            html2canvas(elementoRecibo, { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `orcamento_${numOrcamento}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        document.getElementById('rendimento').addEventListener('input', calcularCustoBaseDoce);
+    </script>
+</body>
+</html>
