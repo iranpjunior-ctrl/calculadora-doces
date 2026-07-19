@@ -2,7 +2,7 @@
   "name": "Calculadora Gourmet Fina",
   "short_name": "Calculadora Gourmet",
   "description": "Precificação inteligente e dinâmica para doces finos.",
-  "start_url": "./calculadora_gourmet.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1e1215",
   "theme_color": "#ed64a6",
