@@ -1,6 +1,6 @@
 const CACHE_NAME = 'calculadora-gourmet-v1';
 const ASSETS = [
-  './calculadora_gourmet.html',
+  './index.html',
   './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
 ];
